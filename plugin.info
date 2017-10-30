@@ -1,0 +1,9 @@
+{
+	"title": "$:/plugins/OokTech/Gatekeeper",
+	"description": "A plugin to watch for file system changes in node and mirror the changes to the browser",
+	"author": "inmysocks",
+	"version": "0.0.1",
+	"core-version": ">=5.1.5",
+	"source": "",
+	"plugin-type": "plugin"
+}
