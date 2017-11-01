@@ -35,8 +35,8 @@ $tw.BrowserTiddlerList = $tw.BrowserTiddlerList || {};
   create a list of excluded tiddlers. At a minimum it should have
   $:/StoryList
   It would be best if we can have it set inside the wiki.
-  A per-wiki exclude list would be best but that would have annoying
-  logic.
+  A per-wiki exclude list would be best but that is going to have annoying
+  logic so it will come later.
 */
 $tw.GateKeeper.ExcludeList = $tw.GateKeeper.ExcludeList || ['$:/StoryList'];
 
