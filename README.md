@@ -21,7 +21,7 @@ To use the demo:
 In the editions subfolder where you have tiddlywiki installed create a folder called GatekeeperDemo.
 Copy the tiddlywiki.info file from the TestWiki folder in the repo into the GatekeeperDemo folder on your computer.
 
-In the plugins subfolder create a folder called OokTech and in that folder place the TiddlyWebSockets plugin folder and the GateKeeper plugin folder.
+In the plugins subfolder create a folder called OokTech and in that folder place the TiddlyWebSockets plugin folder and the Gatekeeper plugin folder.
 
 To start the server navigate to where you have tiddlywiki installed and type:
 

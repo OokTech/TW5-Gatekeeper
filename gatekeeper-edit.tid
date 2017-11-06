@@ -4,7 +4,7 @@ caption: {{$:/core/images/edit-button}} {{$:/language/Buttons/Edit/Caption}}
 description: {{$:/language/Buttons/Edit/Hint}}
 
 \whitespace trim
-<$list filter='[all[current]listed[]field:title[$:/GateKeeper/EditingTiddlers]]'
+<$list filter='[all[current]listed[]field:title[$:/Gatekeeper/EditingTiddlers]]'
 emptyMessage="""<$button message="tm-edit-tiddler" tooltip={{$:/language/Buttons/Edit/Hint}} aria-label={{$:/language/Buttons/Edit/Caption}} class=<<tv-config-toolbar-class>>>
 <$list filter="[<tv-config-toolbar-icons>prefix[yes]]">
 {{$:/core/images/edit-button}}
