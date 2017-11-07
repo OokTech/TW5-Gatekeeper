@@ -27,7 +27,7 @@ var fs = $tw.node ? require("fs"): undefined;
 var path = $tw.node ? require("path"): undefined;
 
 $tw.Gatekeeper = $tw.Gatekeeper || {};
-
+$tw.Gatekeeper.WaitingList = $tw.Gatekeeper.WaitingList || {};
 $tw.Gatekeeper.EditingTiddlers = $tw.Gatekeeper.EditingTiddlers || {};
 
 /*
@@ -38,34 +38,57 @@ $tw.Gatekeeper.EditingTiddlers = $tw.Gatekeeper.EditingTiddlers || {};
   A per-wiki exclude list would be best but that is going to have annoying
   logic so it will come later.
 */
-$tw.Gatekeeper.ExcludeList = $tw.Gatekeeper.ExcludeList || ['$:/StoryList'];
+$tw.Gatekeeper.ExcludeList = $tw.Gatekeeper.ExcludeList || ['$:/StoryList', '$:/HistoryList'];
 
 if (fs) {
   fs.watch($tw.boot.wikiTiddlersPath, function (eventType, filename) {
     // Make sure that the file name isn't undefined
-    console.log(filename)
     if (filename) {
       // If the event is that the file has been deleted than it won't exist
       // but we still need to act here.
       if(fs.existsSync(`${$tw.boot.wikiTiddlersPath}/${filename}`)) {
         // Load tiddler data from the file
         var tiddlerObject = $tw.loadTiddlersFromFile(`${$tw.boot.wikiTiddlersPath}/${filename}`);
-        // Get when the file was last modified in tiddlywiki format
-        var editedTime = $tw.utils.stringifyDate( fs.statSync(`${$tw.boot.wikiTiddlersPath}/${filename}`).mtime);
         // Don't update tiddlers on the exclude list
         if (tiddlerObject.tiddlers[0].title && $tw.Gatekeeper.ExcludeList.indexOf(tiddlerObject.tiddlers[0].title) === -1 && !tiddlerObject.tiddlers[0]['draft.of']) {
-
-          // Update the list of tiddlers currently in the browser
-          $tw.connections.forEach(function (connection, index, connections) {
-            if (connection.active) {
-              try {
-                connection.socket.send(JSON.stringify({type: 'makeTiddler', fields: tiddlerObject.tiddlers[0]}));
-              } catch (err) {
-                console.log(err);
-                $tw.connections[index].active = false;
+          var tiddler = $tw.wiki.getTiddler(tiddlerObject.tiddlers[0].title);
+          if (!tiddler) {
+            tiddler = new $tw.Tiddler({fields:tiddlerObject.tiddlers[0]});
+            $tw.wiki.addTiddler(tiddler);
+          }
+          var changed = $tw.Gatekeeper.FileSystemFunctions.TiddlerHasChanged(tiddler, tiddlerObject);
+          if (changed) {
+            //$tw.Gatekeeper.FileSystemFunctions.saveTiddler(tiddler);
+            Object.keys($tw.connections).forEach(function(connection) {
+              if (!$tw.Gatekeeper.WaitingList[connection]) {
+                $tw.Gatekeeper.WaitingList[connection] = {};
               }
-            }
-          });
+              $tw.Gatekeeper.WaitingList[connection][tiddler.fields.title] = true;
+            });
+            console.log("waiting list: ", $tw.Gatekeeper.WaitingList);
+            // Update the list of tiddlers currently in the browser
+            $tw.connections.forEach(function (connection, index, connections) {
+              if (connection.active) {
+                var send = false;
+                if ($tw.Gatekeeper.WaitingList[connection]) {
+                  if ($tw.Gatekeeper.WaitingList[connection][tiddlerObject.tiddlers[0].title]) {
+                    send = true;
+                  } else {
+                    $tw.Gatekeeper.WaitingList[connection] = {};
+                    send = true;
+                  }
+                }
+                if (send || true) {
+                  try {
+                    connection.socket.send(JSON.stringify({type: 'makeTiddler', fields: tiddlerObject.tiddlers[0]}));
+                  } catch (err) {
+                    console.log(err);
+                    $tw.connections[index].active = false;
+                  }
+                }
+              }
+            });
+          }
         }
       } else {
         console.log('Deleting tiddler')
@@ -88,8 +111,7 @@ if (fs) {
   });
 
   $tw.Gatekeeper.UpdateEditingTiddlers = function (tiddler) {
-    if (tiddler) {
-      console.log(tiddler);
+    if (tiddler && !$tw.Gatekeeper.EditingTiddlers[tiddler]) {
       $tw.Gatekeeper.EditingTiddlers[tiddler] = true;
     }
     var tiddlerFields = {title: "$:/Gatekeeper/EditingTiddlers", list: $tw.utils.stringifyList(Object.keys($tw.Gatekeeper.EditingTiddlers))};

@@ -139,59 +139,64 @@ var setup = function () {
 
       }
     }
-    console.log('save tiddler function')
-  	var self = this;
-  	$tw.Gatekeeper.FileSystemFunctions.getTiddlerFileInfo(tiddler,function(err,fileInfo) {
-  		if(err) {
-  			return callback(err);
-  		}
-  		var filepath = fileInfo.filepath,
-  			error = $tw.utils.createDirectory(path.dirname(filepath));
-  		if(error) {
-  			return callback(error);
-  		}
-  		if(fileInfo.hasMetaFile) {
-  			// Save the tiddler as a separate body and meta file
-  			var typeInfo = $tw.config.contentTypeInfo[tiddler.fields.type || "text/plain"] || {encoding: "utf8"};
-  			fs.writeFile(filepath,tiddler.fields.text,{encoding: typeInfo.encoding},function(err) {
-  				if(err) {
-  					return callback(err);
-  				}
-  				content = $tw.wiki.renderTiddler("text/plain","$:/core/templates/tiddler-metadata",{variables: {currentTiddler: tiddler.fields.title}});
-  				fs.writeFile(fileInfo.filepath + ".meta",content,{encoding: "utf8"},function (err) {
-  					if(err) {
-  						return callback(err);
-  					}
-  					//self.logger.log("Saved file",filepath);
-  					return callback(null);
-  				});
-  			});
-  		} else {
-        console.log('saving')
-  			// Save the tiddler as a self contained templated file
-        var content = makeTiddlerFile(tiddler);
-        console.log(content)
-  			fs.writeFile(filepath,content,{encoding: "utf8"},function (err) {
-  				if(err) {
-  					return callback(err);
-  				}
-          console.log('saved file', filepath)
-          //$tw.wiki.addTiddler(new $tw.Tiddler(tiddler.fields));
-          //$tw.boot.files[tiddler.fields.title] = fileInfo;
-  				//self.logger.log("Saved file",filepath);
-  				return callback(null);
-  			});
-  		}
-  	});
+    if (tiddler && $tw.Gatekeeper.ExcludeList.indexOf(tiddler.fields.title) === -1 && !tiddler.fields.title.startsWith('$:/state/') && !tiddler.fields.title.startsWith('$:/temp/')) {
+      console.log('save tiddler function')
+    	var self = this;
+    	$tw.Gatekeeper.FileSystemFunctions.getTiddlerFileInfo(tiddler,function(err,fileInfo) {
+    		if(err) {
+    			return callback(err);
+    		}
+    		var filepath = fileInfo.filepath,
+    			error = $tw.utils.createDirectory(path.dirname(filepath));
+    		if(error) {
+    			return callback(error);
+    		}
+    		if(fileInfo.hasMetaFile) {
+    			// Save the tiddler as a separate body and meta file
+    			var typeInfo = $tw.config.contentTypeInfo[tiddler.fields.type || "text/plain"] || {encoding: "utf8"};
+    			fs.writeFile(filepath,tiddler.fields.text,{encoding: typeInfo.encoding},function(err) {
+    				if(err) {
+    					return callback(err);
+    				}
+    				content = $tw.wiki.renderTiddler("text/plain","$:/core/templates/tiddler-metadata",{variables: {currentTiddler: tiddler.fields.title}});
+    				fs.writeFile(fileInfo.filepath + ".meta",content,{encoding: "utf8"},function (err) {
+    					if(err) {
+    						return callback(err);
+    					}
+    					//self.logger.log("Saved file",filepath);
+    					return callback(null);
+    				});
+    			});
+    		} else {
+          console.log('saving')
+    			// Save the tiddler as a self contained templated file
+          var content = makeTiddlerFile(tiddler);
+    			fs.writeFile(filepath,content,{encoding: "utf8"},function (err) {
+    				if(err) {
+    					return callback(err);
+    				}
+            console.log('saved file', filepath)
+            $tw.wiki.addTiddler(new $tw.Tiddler(tiddler.fields));
+            Object.keys($tw.connections).forEach(function(connection) {
+              $tw.Gatekeeper.WaitingList[connection][tiddler.fields.title] = true;
+            });
+    				//self.logger.log("Saved file",filepath);
+    				return callback(null);
+    			});
+    		}
+    	});
+    }
   };
 
   function makeTiddlerFile(tiddler) {
     var output = "";
     Object.keys(tiddler.fields).forEach(function(fieldName, index) {
-      if (fieldName !== 'text') {
-        output += `${fieldName}: ${tiddler.fields[fieldName]}\n`;
-      } else if (fieldName === 'created' || fieldName === 'modified') {
+      if (fieldName === 'created' || fieldName === 'modified') {
         output += `${fieldName}: ${$tw.utils.stringifyDate(new Date(tiddler.fields[fieldName]))}\n`;
+      } else if (fieldName === 'list'){
+        output += `${fieldName}: ${$tw.utils.stringifyList(tiddler.fields[fieldName])}`;
+      } else if (fieldName !== 'text') {
+        output += `${fieldName}: ${tiddler.fields[fieldName]}\n`;
       }
     })
     output += `\n${tiddler.fields.text}`;
@@ -225,7 +230,7 @@ var setup = function () {
   		fileInfo = $tw.boot.files[title];
   	// Only delete the tiddler if we have writable information for the file
   	if(fileInfo) {
-      console.log(fileInfo.filepath)
+      //console.log(fileInfo.filepath)
   		// Delete the file
   		fs.unlink(fileInfo.filepath,function(err) {
   			if(err) {
@@ -247,6 +252,46 @@ var setup = function () {
   	} else {
   		callback(null);
   	}
+  };
+
+  /*
+    Check if the file version matches the in-browser version of a tiddler
+  */
+  $tw.Gatekeeper.FileSystemFunctions.TiddlerHasChanged = function (tiddler, tiddlerFileObject) {
+    if (!tiddlerFileObject) {
+      return true;
+    }
+    if (!tiddler) {
+      return true;
+    }
+
+    var changed = false;
+    var longer = Object.keys(tiddler.fields).length > Object.keys(tiddlerFileObject.tiddlers[0])?Object.keys(tiddler.fields).length:Object.keys(tiddlerFileObject.tiddlers[0]);
+    // check to see if the field values are the same, ignore modified for now
+    longer.forEach(function(field) {
+      if (field !== 'modified' && field !== 'created' && field !== 'list' && field !== 'tags') {
+        if (!tiddlerFileObject.tiddlers[0][field] || tiddlerFileObject.tiddlers[0][field] !== tiddler.fields[field]) {
+          // There is a difference!
+          changed = true;
+        }
+      } else if (field === 'list' || field === 'tags') {
+        if (tiddler.fields[field] && tiddlerFileObject.tiddlers[0][field]) {
+          if ($tw.utils.parseStringArray(tiddlerFileObject.tiddlers[0][field]).length !== tiddler.fields[field].length) {
+            changed = true;
+          } else {
+            var arrayList = $tw.utils.parseStringArray(tiddlerFileObject.tiddlers[0][field]);
+            arrayList.forEach(function(item) {
+              if (tiddler.fields[field].indexOf(item) === -1) {
+                changed = true;
+              }
+            })
+          }
+        } else {
+          changed = true;
+        }
+      }
+    })
+    return changed;
   };
 }
 
