@@ -30,4 +30,4 @@ To start the server navigate to where you have tiddlywiki installed and type:
 It will give you the ip address of the server, in any browser on a computer on the local network put that ip address in address bar and it should open the wiki.
 Now if you edit any .tid files outside of the wiki the changes should immediately be reflected in the wiki, if you have multiple browsers connected to the server open up the same tiddler in each browser, when you edit the tiddler in one browser than the edit button in the other browser should be replaced by an X and if you edit the tiddler than the edits should appear in the other browser.
 
-These changes take a few seconds to appear. I am working on a new syncadapter that will make the changes propagate much faster.
+These changes should appear almost immediately.
